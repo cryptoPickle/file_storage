@@ -5,10 +5,14 @@ import (
 )
 
 func TestTCPTransport(t *testing.T) {
-	listenAddr := ":8000"
-	tt := NewTCPTransport(listenAddr)
+	opts := TCPTransportOpts{
+		ListenAddr:    ":3000",
+		Decoder:       GOBDecoder{},
+		HandshakeFunc: NOPHandshakeFunc,
+	}
+	tt := NewTCPTransport(opts)
 
-	if tt.listenAddr != listenAddr {
+	if tt.ListenAddr != ":3000" {
 		t.Fail()
 	}
 

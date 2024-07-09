@@ -14,3 +14,7 @@ func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 		outbound: outbound,
 	}
 }
+
+func (p *TCPPeer) Close() error {
+	return p.conn.Close()
+}

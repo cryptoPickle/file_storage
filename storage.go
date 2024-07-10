@@ -7,14 +7,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"os"
 	"strings"
 )
 
+const defaultRootFolderName = "picklenetwork"
+
 type StoreOpts struct {
 	PathTransformFunc PathTransformFunc
+	Root              string
 }
 
 type Store struct {
@@ -24,6 +26,15 @@ type Store struct {
 type PathKey struct {
 	PathName string
 	FileName string
+}
+
+func (p PathKey) TopParent() (string, error) {
+	paths := strings.Split(p.PathName, "/")
+	if len(paths) == 0 {
+		return "", errors.New("not valid path")
+	}
+
+	return fmt.Sprintf("%v/%v", paths[0], paths[1]), nil
 }
 
 func (p PathKey) FullPath() string {
@@ -42,27 +53,25 @@ func NewStore(options ...OptionsFn) *Store {
 }
 
 func (s *Store) Delete(key string) error {
-	pathKey := s.PathTransformFunc(key)
+	pathKey := s.PathTransformFunc(key, s.Root)
 
-	ok := s.Has(key)
-	if ok {
-		return os.RemoveAll(pathKey.FullPath())
-	}
 	defer func() {
-		if ok {
-			log.Printf("deleted [%s] from disk", pathKey.FileName)
-		}
+		log.Printf("deleted [%s] from disk", pathKey.FileName)
 	}()
 
-	return errors.New("can't delete the file")
+	path, err := pathKey.TopParent()
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(path)
 }
 
 func (s *Store) Has(key string) bool {
-	pathKey := s.PathTransformFunc(key)
+	pathKey := s.PathTransformFunc(key, s.Root)
 
 	_, err := os.Stat(pathKey.FullPath())
 
-	return err == fs.ErrNotExist
+	return !errors.Is(err, os.ErrNotExist)
 }
 
 func (s *Store) Read(key string) (io.Reader, error) {
@@ -79,8 +88,7 @@ func (s *Store) Read(key string) (io.Reader, error) {
 }
 
 func (s *Store) writeStream(key string, r io.Reader) error {
-	pathKey := s.PathTransformFunc(key)
-
+	pathKey := s.PathTransformFunc(key, s.Root)
 	if err := os.MkdirAll(pathKey.PathName, os.ModePerm); err != nil {
 		return err
 	}
@@ -103,7 +111,7 @@ func (s *Store) writeStream(key string, r io.Reader) error {
 }
 
 func (s *Store) readStream(key string) (io.ReadCloser, error) {
-	pathKey := s.PathTransformFunc(key)
+	pathKey := s.PathTransformFunc(key, s.Root)
 	return os.Open(pathKey.FullPath())
 }
 
@@ -112,12 +120,13 @@ type OptionsFn func(*StoreOpts)
 func defaultOptios() *StoreOpts {
 	return &StoreOpts{
 		PathTransformFunc: DefaultTransformFunc,
+		Root:              defaultRootFolderName,
 	}
 }
 
-type PathTransformFunc func(string) PathKey
+type PathTransformFunc func(string, string) PathKey
 
-func DefaultTransformFunc(key string) PathKey {
+func DefaultTransformFunc(key string, root string) PathKey {
 	hash := sha1.Sum([]byte(key))
 	hashStr := hex.EncodeToString(hash[:])
 	blocksize := 5
@@ -130,7 +139,7 @@ func DefaultTransformFunc(key string) PathKey {
 	}
 
 	return PathKey{
-		PathName: strings.Join(paths, "/"),
+		PathName: root + "/" + strings.Join(paths, "/"),
 		FileName: hashStr,
 	}
 }

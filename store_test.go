@@ -2,14 +2,18 @@ package main
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"testing"
 )
 
+var defaultFolder = "picklenetwork"
+
 func TestPathTransformFunc(t *testing.T) {
 	key := "somepiture.jpg"
-	pathname := DefaultTransformFunc(key)
-	expectedPathName := "1fc6c/388d4/f5030/0ab78/9cc66/2adf1/b9db4/97b45"
+	pathname := DefaultTransformFunc(key, defaultFolder)
+	expectedPathName := defaultFolder + "/1fc6c/388d4/f5030/0ab78/9cc66/2adf1/b9db4/97b45"
 	expectedOriginalKey := "1fc6c388d4f50300ab789cc662adf1b9db497b45"
 
 	if pathname.PathName != expectedPathName {
@@ -27,30 +31,51 @@ func RemoveFiles(t *testing.T, path string) {
 	}
 }
 
-// func TestStore(t *testing.T) {
-// 	s := NewStore()
-// 	key := "somepicture"
-// 	p := DefaultTransformFunc(key)
-// 	defer RemoveFiles(t, p.PathName)
-//
-// 	data := []byte("somedata")
-//
-// 	if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
-// 		t.Error(err)
-// 	}
-//
-// 	r, err := s.Read(key)
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-//
-// 	b, _ := io.ReadAll(r)
-//
-// 	fmt.Print(string(b))
-// 	if string(b) != string(data) {
-// 		t.Errorf("want %s have %s ", data, b)
-// 	}
-// }
+func TestStore(t *testing.T) {
+	s := NewStore()
+	key := "somepicture"
+	p := DefaultTransformFunc(key, defaultFolder)
+	defer RemoveFiles(t, p.PathName)
+
+	data := []byte("somedata")
+
+	if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
+		t.Error(err)
+	}
+
+	r, err := s.Read(key)
+	if err != nil {
+		t.Error(err)
+	}
+
+	b, _ := io.ReadAll(r)
+
+	fmt.Print(string(b))
+	if string(b) != string(data) {
+		t.Errorf("want %s have %s ", data, b)
+	}
+}
+
+func TestHas(t *testing.T) {
+	s := NewStore()
+	key := "somepicture"
+	p := DefaultTransformFunc(key, defaultFolder)
+	defer RemoveFiles(t, p.PathName)
+
+	data := []byte("somedata")
+
+	if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
+		t.Error(err)
+	}
+
+	if ok := s.Has(key); !ok {
+		t.Error("has should return true")
+	}
+
+	if ok := s.Has("not exits"); ok {
+		t.Error("has should return false")
+	}
+}
 
 func TestDelete(t *testing.T) {
 	s := NewStore()

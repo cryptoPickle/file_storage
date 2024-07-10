@@ -16,12 +16,12 @@ type TCPTransportOpts struct {
 }
 
 type TCPTransport struct {
-	TCPTransportOpts
+	*TCPTransportOpts
 	listener net.Listener
 	rpcch    chan RPC
 }
 
-func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
+func NewTCPTransport(opts *TCPTransportOpts) *TCPTransport {
 	return &TCPTransport{
 		TCPTransportOpts: opts,
 		rpcch:            make(chan RPC),
@@ -58,19 +58,29 @@ func (t *TCPTransport) acceptLoop() {
 		if err != nil {
 			fmt.Println("TCP Accept Error: ", err)
 		}
-		fmt.Printf("new incoming connection %+v\n", conn)
-		go t.handleConn(conn)
+		go t.handleConn(conn, false)
 	}
 }
 
-func (t *TCPTransport) handleConn(conn net.Conn) {
+func (t *TCPTransport) Dial(addr string) error {
+	fmt.Print(addr)
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		return err
+	}
+
+	go t.handleConn(conn, true)
+	return nil
+}
+
+func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 	var err error
 	defer func() {
 		fmt.Printf("dorpping peer connection %s\n", err)
 		conn.Close()
 	}()
 
-	peer := NewTCPPeer(conn, true)
+	peer := NewTCPPeer(conn, outbound)
 
 	if err := t.HandshakeFunc(peer); err != nil {
 		return

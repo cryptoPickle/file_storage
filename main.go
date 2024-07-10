@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"log"
 	"time"
 
@@ -8,32 +9,45 @@ import (
 )
 
 func main() {
-	s := NewFileServer(WithListenAddr, WithStorageRoot, WithTransporter)
-
+	s1 := makeServer(":3000")
+	s2 := makeServer(":4000", ":3000")
 	go func() {
-		time.Sleep(3 * time.Second)
-		s.Stop()
+		log.Fatal(s1.Start())
 	}()
-	if err := s.Start(); err != nil {
-		log.Fatal(err)
+
+	go s2.Start()
+
+	time.Sleep(1 * time.Second)
+	data := bytes.NewReader([]byte("some private data"))
+	s2.StoreData("somekey", data)
+	select {}
+}
+
+func makeServer(listenAddr string, nodes ...string) *FileServer {
+	WithStorageRoot := func(opts *FileServerOpts) {
+		opts.StorageRoot = listenAddr + "_network"
 	}
-}
 
-func WithListenAddr(opts *FileServerOpts) {
-	opts.ListenAddr = ":1337"
-}
-
-func WithStorageRoot(opts *FileServerOpts) {
-	opts.StorageRoot = "pickle-storage"
-}
-
-func WithTransporter(opts *FileServerOpts) {
-	tpopts := p2p.TCPTransportOpts{
-		ListenAddr:    opts.ListenAddr,
+	tpopts := &p2p.TCPTransportOpts{
 		Decoder:       p2p.NOPDecoder{},
 		HandshakeFunc: p2p.NOPHandshakeFunc,
+		ListenAddr:    listenAddr,
+	}
+	WithTransporter := func(opts *FileServerOpts) {
+		tp := p2p.NewTCPTransport(tpopts)
+		opts.Transport = tp
 	}
 
-	tp := p2p.NewTCPTransport(tpopts)
-	opts.Transport = tp
+	WithBootstrapNodes := func(opts *FileServerOpts) {
+		opts.BootstrapNodes = nodes
+	}
+	s := NewFileServer(
+		WithStorageRoot,
+		WithTransporter,
+		WithBootstrapNodes,
+	)
+
+	tpopts.OnPeer = s.OnPeer
+
+	return s
 }

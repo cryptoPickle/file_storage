@@ -1,27 +1,33 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
+	"io"
 	"log"
+	"sync"
 
 	"github.com/cryptoPickle/file_storage/p2p"
 )
 
 type FileServerOpts struct {
-	Transport   p2p.Transporter
-	ListenAddr  string
-	StorageRoot string
+	Transport      p2p.Transporter
+	StorageRoot    string
+	BootstrapNodes []string
 }
 
 type FileServer struct {
 	*FileServerOpts
 	store *Store
 
+	peerLock *sync.Mutex
+	peers    map[string]p2p.Peer
+
 	quitch chan struct{}
 }
 
 func defaultOptions() *FileServerOpts {
 	return &FileServerOpts{
-		ListenAddr:  ":3000",
 		StorageRoot: "storage",
 	}
 }
@@ -36,6 +42,8 @@ func NewFileServer(opts ...FileServerOptsFn) *FileServer {
 
 	fs := &FileServer{
 		FileServerOpts: defaultOpts,
+		peers:          make(map[string]p2p.Peer),
+		peerLock:       &sync.Mutex{},
 		quitch:         make(chan struct{}),
 	}
 
@@ -52,12 +60,21 @@ func (s *FileServer) Start() error {
 		return err
 	}
 
+	s.bootstrapNetwork()
 	s.loop()
 	return nil
 }
 
 func (s *FileServer) Stop() {
 	close(s.quitch)
+}
+
+func (s *FileServer) OnPeer(peer p2p.Peer) error {
+	s.peerLock.Lock()
+	defer s.peerLock.Unlock()
+	s.peers[peer.RemoteAddr().String()] = peer
+	log.Printf("connected with remote %s", peer.RemoteAddr())
+	return nil
 }
 
 func (s *FileServer) loop() {
@@ -68,9 +85,54 @@ func (s *FileServer) loop() {
 	for {
 		select {
 		case msg := <-s.Transport.Consume():
-			log.Println(msg)
+			log.Println("message: ", msg)
 		case <-s.quitch:
 			return
 		}
+	}
+}
+
+type Payload struct {
+	Key  string
+	Data []byte
+}
+
+func (s *FileServer) StoreData(key string, r io.Reader) error {
+	if err := s.store.Write(key, r); err != nil {
+		return err
+	}
+
+	buf := new(bytes.Buffer)
+	if _, err := io.Copy(buf, r); err != nil {
+		return err
+	}
+
+	p := &Payload{
+		Key:  key,
+		Data: buf.Bytes(),
+	}
+	return s.broadcast(p)
+}
+
+func (s *FileServer) broadcast(p *Payload) error {
+	peers := []io.Writer{}
+
+	for _, peer := range s.peers {
+		peers = append(peers, peer.Conn())
+	}
+
+	mw := io.MultiWriter(peers...)
+
+	return gob.NewEncoder(mw).Encode(p)
+}
+
+func (s *FileServer) bootstrapNetwork() {
+	for _, addr := range s.BootstrapNodes {
+		go func(address string) {
+			log.Println("attempting to dial: ", addr)
+			if err := s.Transport.Dial(address); err != nil {
+				log.Println("dial error: ", err)
+			}
+		}(addr)
 	}
 }

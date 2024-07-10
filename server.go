@@ -1,6 +1,10 @@
 package main
 
-import "github.com/cryptoPickle/file_storage/p2p"
+import (
+	"log"
+
+	"github.com/cryptoPickle/file_storage/p2p"
+)
 
 type FileServerOpts struct {
 	Transport   p2p.Transporter
@@ -11,6 +15,8 @@ type FileServerOpts struct {
 type FileServer struct {
 	*FileServerOpts
 	store *Store
+
+	quitch chan struct{}
 }
 
 func defaultOptions() *FileServerOpts {
@@ -30,6 +36,7 @@ func NewFileServer(opts ...FileServerOptsFn) *FileServer {
 
 	fs := &FileServer{
 		FileServerOpts: defaultOpts,
+		quitch:         make(chan struct{}),
 	}
 
 	WithRoot := func(sopts *StoreOpts) {
@@ -40,9 +47,30 @@ func NewFileServer(opts ...FileServerOptsFn) *FileServer {
 	return fs
 }
 
-func (s *FileServerOpts) Start() error {
+func (s *FileServer) Start() error {
 	if err := s.Transport.ListenAndAccept(); err != nil {
 		return err
 	}
+
+	s.loop()
 	return nil
+}
+
+func (s *FileServer) Stop() {
+	close(s.quitch)
+}
+
+func (s *FileServer) loop() {
+	defer func() {
+		s.Transport.Close()
+		log.Println("file server stopped")
+	}()
+	for {
+		select {
+		case msg := <-s.Transport.Consume():
+			log.Println(msg)
+		case <-s.quitch:
+			return
+		}
+	}
 }

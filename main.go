@@ -2,16 +2,21 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/cryptoPickle/file_storage/p2p"
 )
 
 func main() {
 	s := NewFileServer(WithListenAddr, WithStorageRoot, WithTransporter)
+
+	go func() {
+		time.Sleep(3 * time.Second)
+		s.Stop()
+	}()
 	if err := s.Start(); err != nil {
 		log.Fatal(err)
 	}
-	select {}
 }
 
 func WithListenAddr(opts *FileServerOpts) {

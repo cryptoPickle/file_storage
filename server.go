@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 	"io"
 	"log"
 	"sync"
@@ -77,32 +78,18 @@ func (s *FileServer) OnPeer(peer p2p.Peer) error {
 	return nil
 }
 
-func (s *FileServer) loop() {
-	defer func() {
-		s.Transport.Close()
-		log.Println("file server stopped")
-	}()
-	for {
-		select {
-		case msg := <-s.Transport.Consume():
-			log.Println("message: ", msg)
-		case <-s.quitch:
-			return
-		}
-	}
-}
-
 type Payload struct {
 	Key  string
 	Data []byte
 }
 
 func (s *FileServer) StoreData(key string, r io.Reader) error {
-	if err := s.store.Write(key, r); err != nil {
+	buf := new(bytes.Buffer)
+	tee := io.TeeReader(r, buf)
+	if err := s.store.Write(key, tee); err != nil {
 		return err
 	}
 
-	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, r); err != nil {
 		return err
 	}
@@ -134,5 +121,24 @@ func (s *FileServer) bootstrapNetwork() {
 				log.Println("dial error: ", err)
 			}
 		}(addr)
+	}
+}
+
+func (s *FileServer) loop() {
+	defer func() {
+		s.Transport.Close()
+		log.Println("file server stopped")
+	}()
+	for {
+		select {
+		case msg := <-s.Transport.Consume():
+			var p Payload
+			if err := gob.NewDecoder(bytes.NewReader(msg.Payload)).Decode(&p); err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("recived msg %+v\n", string(p.Data))
+		case <-s.quitch:
+			return
+		}
 	}
 }

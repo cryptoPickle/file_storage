@@ -1,34 +1,34 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/cryptoPickle/file_storage/p2p"
 )
 
-func OnPeer(peer p2p.Peer) error {
-	// peer.Close()
-	return nil
-}
-
 func main() {
-	tcpOpts := p2p.TCPTransportOpts{
-		ListenAddr:    ":3000",
-		HandshakeFunc: p2p.NOPHandshakeFunc,
-		Decoder:       p2p.NOPDecoder{},
-		OnPeer:        OnPeer,
-	}
-	tr := p2p.NewTCPTransport(tcpOpts)
-	if err := tr.ListenAndAccept(); err != nil {
+	s := NewFileServer(WithListenAddr, WithStorageRoot, WithTransporter)
+	if err := s.Start(); err != nil {
 		log.Fatal(err)
 	}
-
-	go func() {
-		for {
-			msg := <-tr.Consume()
-			fmt.Printf("%+v\n", msg)
-		}
-	}()
 	select {}
+}
+
+func WithListenAddr(opts *FileServerOpts) {
+	opts.ListenAddr = ":1337"
+}
+
+func WithStorageRoot(opts *FileServerOpts) {
+	opts.StorageRoot = "pickle-storage"
+}
+
+func WithTransporter(opts *FileServerOpts) {
+	tpopts := p2p.TCPTransportOpts{
+		ListenAddr:    opts.ListenAddr,
+		Decoder:       p2p.NOPDecoder{},
+		HandshakeFunc: p2p.NOPHandshakeFunc,
+	}
+
+	tp := p2p.NewTCPTransport(tpopts)
+	opts.Transport = tp
 }

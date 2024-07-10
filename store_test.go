@@ -2,9 +2,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"fmt"
 	"io"
-	"os"
 	"testing"
 )
 
@@ -25,17 +25,10 @@ func TestPathTransformFunc(t *testing.T) {
 	}
 }
 
-func RemoveFiles(t *testing.T, path string) {
-	if err := os.RemoveAll(path); err != nil {
-		t.Errorf("can't clean the test %s", err)
-	}
-}
-
 func TestStore(t *testing.T) {
 	s := NewStore()
 	key := "somepicture"
-	p := DefaultTransformFunc(key, defaultFolder)
-	defer RemoveFiles(t, p.PathName)
+	defer teardown(t, s)
 
 	data := []byte("somedata")
 
@@ -59,8 +52,8 @@ func TestStore(t *testing.T) {
 func TestHas(t *testing.T) {
 	s := NewStore()
 	key := "somepicture"
-	p := DefaultTransformFunc(key, defaultFolder)
-	defer RemoveFiles(t, p.PathName)
+
+	defer teardown(t, s)
 
 	data := []byte("somedata")
 
@@ -79,15 +72,34 @@ func TestHas(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	s := NewStore()
-	key := "somepicture"
+	key := "pictureKey"
 
-	data := []byte("somedata")
+	defer teardown(t, s)
 
-	if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
-		t.Error(err)
+	for i := 0; i <= 50; i++ {
+		buf := make([]byte, 10*i)
+
+		if _, err := rand.Read(buf); err != nil {
+			t.Error(err)
+		}
+
+		if err := s.writeStream(key, bytes.NewReader(buf)); err != nil {
+			t.Error(err)
+		}
+
+		if err := s.Delete(key); err != nil {
+			t.Error(err)
+		}
+
+		if ok := s.Has(key); ok {
+			t.Errorf("expected to not the have the key")
+		}
+
 	}
+}
 
-	if err := s.Delete(key); err != nil {
+func teardown(t *testing.T, s *Store) {
+	if err := s.Clear(); err != nil {
 		t.Error(err)
 	}
 }

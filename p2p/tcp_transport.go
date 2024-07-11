@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"reflect"
 )
 
 type TCPTransportOpts struct {
@@ -47,6 +46,10 @@ func (t *TCPTransport) ListenAndAccept() error {
 
 func (t *TCPTransport) Close() error {
 	return t.listener.Close()
+}
+
+func (t *TCPTransport) ListenAddress() string {
+	return t.ListenAddr
 }
 
 func (t *TCPTransport) acceptLoop() {
@@ -100,16 +103,11 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 			return
 		}
 
-		if err != nil {
-			if err.Error() == "EOF" {
-				return
-			}
-			fmt.Printf("TCP read error: %s\n", err)
-			fmt.Println(reflect.TypeOf(err))
-			continue
-
-		}
-		rpc.From = conn.RemoteAddr()
+		rpc.From = conn.RemoteAddr().String()
+		fmt.Println("waiting till stream  is done")
+		peer.Wg.Add(1)
 		t.rpcch <- rpc
+		peer.Wg.Wait()
+		fmt.Println("stream  done continue...")
 	}
 }

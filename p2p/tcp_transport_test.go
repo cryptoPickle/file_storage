@@ -10,7 +10,7 @@ func TestTCPTransport(t *testing.T) {
 		Decoder:       GOBDecoder{},
 		HandshakeFunc: NOPHandshakeFunc,
 	}
-	tt := NewTCPTransport(opts)
+	tt := NewTCPTransport(&opts)
 
 	if tt.ListenAddr != ":3000" {
 		t.Fail()

@@ -78,30 +78,60 @@ func (s *FileServer) OnPeer(peer p2p.Peer) error {
 	return nil
 }
 
-type Payload struct {
+type DataMessage struct {
 	Key  string
 	Data []byte
 }
 
-func (s *FileServer) StoreData(key string, r io.Reader) error {
-	buf := new(bytes.Buffer)
-	tee := io.TeeReader(r, buf)
-	if err := s.store.Write(key, tee); err != nil {
-		return err
-	}
-
-	if _, err := io.Copy(buf, r); err != nil {
-		return err
-	}
-
-	p := &Payload{
-		Key:  key,
-		Data: buf.Bytes(),
-	}
-	return s.broadcast(p)
+type Message struct {
+	From    string
+	Payload any
 }
 
-func (s *FileServer) broadcast(p *Payload) error {
+func (s *FileServer) StoreData(key string, r io.Reader) error {
+	msg := Message{
+		From:    s.Transport.ListenAddress(),
+		Payload: []byte("somemessage"),
+	}
+
+	buf := new(bytes.Buffer)
+
+	if err := gob.NewEncoder(buf).Encode(&msg); err != nil {
+		return err
+	}
+	for _, peer := range s.peers {
+		if err := peer.Send(buf.Bytes()); err != nil {
+			return err
+		}
+	}
+
+	payload := []byte("THIS LARGE FILE")
+
+	for _, peer := range s.peers {
+		if err := peer.Send(payload); err != nil {
+			return err
+		}
+	}
+
+	return nil
+	// buf := new(bytes.Buffer)
+	// tee := io.TeeReader(r, buf)
+	// if err := s.store.Write(key, tee); err != nil {
+	// 	return err
+	// }
+	//
+	// if _, err := io.Copy(buf, r); err != nil {
+	// 	return err
+	// }
+	//
+	// p := &DataMessage{
+	// 	Key:  key,
+	// 	Data: buf.Bytes(),
+	// }
+	// return s.broadcast(p)
+}
+
+func (s *FileServer) broadcast(p *DataMessage) error {
 	peers := []io.Writer{}
 
 	for _, peer := range s.peers {
@@ -131,12 +161,24 @@ func (s *FileServer) loop() {
 	}()
 	for {
 		select {
-		case msg := <-s.Transport.Consume():
-			var p Payload
-			if err := gob.NewDecoder(bytes.NewReader(msg.Payload)).Decode(&p); err != nil {
-				log.Fatal(err)
+		case rpc := <-s.Transport.Consume():
+			var m Message
+			if err := gob.NewDecoder(bytes.NewReader(rpc.Payload)).Decode(&m); err != nil {
+				log.Fatal("error in here", err)
 			}
-			fmt.Printf("recived msg %+v\n", string(p.Data))
+
+			peer, ok := s.peers[rpc.From]
+			if !ok {
+				panic("peer not found")
+			}
+
+			buff := make([]byte, 2000)
+			if _, err := peer.Read(buff); err != nil {
+				log.Fatal("Cant read peer", err)
+			}
+			fmt.Printf("heree, %s\n", string(buff))
+			peer.CloseStream()
+
 		case <-s.quitch:
 			return
 		}

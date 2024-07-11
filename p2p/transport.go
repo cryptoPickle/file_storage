@@ -8,6 +8,8 @@ type Peer interface {
 	RemoteAddr() net.Addr
 	Close() error
 	Conn() net.Conn
+	Read([]byte) (int, error)
+	CloseStream()
 }
 
 // Transport is anything that handles the communication
@@ -18,4 +20,5 @@ type Transporter interface {
 	Consume() <-chan RPC
 	Close() error
 	Dial(string) error
+	ListenAddress() string
 }

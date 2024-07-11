@@ -1,17 +1,22 @@
 package p2p
 
-import "net"
+import (
+	"net"
+	"sync"
+)
 
 type TCPPeer struct {
 	conn net.Conn
 	// if dial outbound => true, if accept outbound => false
 	outbound bool
+	Wg       *sync.WaitGroup
 }
 
 func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	return &TCPPeer{
 		conn:     conn,
 		outbound: outbound,
+		Wg:       &sync.WaitGroup{},
 	}
 }
 
@@ -30,4 +35,12 @@ func (p *TCPPeer) Send(b []byte) error {
 
 func (p *TCPPeer) Conn() net.Conn {
 	return p.conn
+}
+
+func (p *TCPPeer) Read(b []byte) (int, error) {
+	return p.conn.Read(b)
+}
+
+func (p *TCPPeer) CloseStream() {
+	p.Wg.Done()
 }

@@ -4,11 +4,8 @@ import "net"
 
 // Peer is an interface that represents remote node.
 type Peer interface {
+	net.Conn
 	Send([]byte) error
-	RemoteAddr() net.Addr
-	Close() error
-	Conn() net.Conn
-	Read([]byte) (int, error)
 	CloseStream()
 }
 

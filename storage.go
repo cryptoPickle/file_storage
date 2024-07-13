@@ -74,7 +74,7 @@ func (s *Store) Has(key string) bool {
 	return !errors.Is(err, os.ErrNotExist)
 }
 
-func (s *Store) Write(key string, r io.Reader) error {
+func (s *Store) Write(key string, r io.Reader) (int64, error) {
 	return s.writeStream(key, r)
 }
 
@@ -95,27 +95,27 @@ func (s *Store) Read(key string) (io.Reader, error) {
 	return buf, err
 }
 
-func (s *Store) writeStream(key string, r io.Reader) error {
+func (s *Store) writeStream(key string, r io.Reader) (int64, error) {
 	pathKey := s.PathTransformFunc(key, s.Root)
 	if err := os.MkdirAll(pathKey.PathName, os.ModePerm); err != nil {
-		return err
+		return 0, err
 	}
 
 	filePath := pathKey.FullPath()
 	f, err := os.Create(filePath)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	defer f.Close()
 
 	n, err := io.Copy(f, r)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	log.Printf("written (%d) bytes to disk %s \n", n, filePath)
-	return nil
+	return n, err
 }
 
 func (s *Store) readStream(key string) (io.ReadCloser, error) {

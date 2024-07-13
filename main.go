@@ -1,9 +1,9 @@
 package main
 
 import (
-	"bytes"
+	"fmt"
+	"io"
 	"log"
-	"time"
 
 	"github.com/cryptoPickle/file_storage/p2p"
 )
@@ -17,9 +17,21 @@ func main() {
 
 	go s2.Start()
 
-	time.Sleep(1 * time.Second)
-	data := bytes.NewReader([]byte("some private data"))
-	s2.StoreData("somekey", data)
+	// time.Sleep(1 * time.Second)
+	// data := bytes.NewReader([]byte("some private data"))
+	// s2.Store("somekey", data)
+
+	r, err := s2.Get("somekey")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	b, err := io.ReadAll(r)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("received file", string(b))
 	select {}
 }
 

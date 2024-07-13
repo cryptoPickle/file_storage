@@ -32,7 +32,7 @@ func TestStore(t *testing.T) {
 
 	data := []byte("somedata")
 
-	if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
+	if _, err := s.writeStream(key, bytes.NewReader(data)); err != nil {
 		t.Error(err)
 	}
 
@@ -57,7 +57,7 @@ func TestHas(t *testing.T) {
 
 	data := []byte("somedata")
 
-	if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
+	if _, err := s.writeStream(key, bytes.NewReader(data)); err != nil {
 		t.Error(err)
 	}
 
@@ -83,7 +83,7 @@ func TestDelete(t *testing.T) {
 			t.Error(err)
 		}
 
-		if err := s.writeStream(key, bytes.NewReader(buf)); err != nil {
+		if _, err := s.writeStream(key, bytes.NewReader(buf)); err != nil {
 			t.Error(err)
 		}
 

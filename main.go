@@ -21,7 +21,7 @@ func main() {
 	// data := bytes.NewReader([]byte("some private data"))
 	// s2.Store("somekey", data)
 
-	r, err := s2.Get("somekey")
+	r, err := s2.Get("somekey1")
 	if err != nil {
 		log.Fatal(err)
 	}
